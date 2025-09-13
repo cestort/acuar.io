@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card bg-black border-secondary">
+      <div class="card-body">
+        <h5 class="card-title">Acuarios</h5>
+
+        <!-- Selector de acuario -->
+        <form class="mb-3" method="get" action="{{ url_for('home') }}">
+          <div class="input-group">
+            <select class="form-select bg-dark text-light border-secondary" name="aquarium_id" onchange="this.form.submit()">
+              {% for aq in aquariums %}
+                <option value="{{ aq.id }}" {% if aq.id == selected_id %}selected{% endif %}>
+                  {{ aq.name }} — {{ aq.created_at }}
+                </option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-outline-secondary" type="submit">Ver</button>
+          </div>
+        </form>
+
+        <!-- Crear acuario -->
+        <h6 class="mt-4">Nuevo acuario</h6>
+        <form method="post" action="{{ url_for('create_aquarium') }}" enctype="multipart/form-data">
+          <div class="mb-2">
+            <label class="form-label">Nombre</label>
+            <input class="form-control bg-dark text-light border-secondary" name="name" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Fecha creación</label>
+            <input type="date" class="form-control bg-dark text-light border-secondary" name="created_at">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Imagen (opcional)</label>
+            <input type="file" class="form-control bg-dark text-light border-secondary" name="image" accept="image/*">
+          </div>
+          <button class="btn btn-primary w-100">Crear</button>
+        </form>
+
+        <!-- Editar acuario elegido -->
+        {% if selected_id %}
+        {% set curr = aquariums | selectattr('id','equalto',selected_id) | list | first %}
+        <hr class="border-secondary">
+        <h6>Editar “{{ curr.name }}”</h6>
+        <form method="post" action="{{ url_for('update_aquarium', aq_id=selected_id) }}" enctype="multipart/form-data">
+          <div class="mb-2">
+            <label class="form-label">Nombre</label>
+            <input class="form-control bg-dark text-light border-secondary" name="name" value="{{ curr.name }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Fecha creación</label>
+            <input type="date" class="form-control bg-dark text-light border-secondary" name="created_at" value="{{ curr.created_at }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Imagen (reemplazar)</label>
+            <input type="file" class="form-control bg-dark text-light border-secondary" name="image" accept="image/*">
+          </div>
+          <button class="btn btn-outline-primary w-100">Guardar cambios</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card bg-black border-secondary mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Añadir registro</h5>
+        <form method="post" action="{{ url_for('create_measurement') }}">
+          <input type="hidden" name="aquarium_id" value="{{ selected_id }}">
+          <div class="row g-2">
+            <div class="col-6 col-md-4">
+              <label class="form-label">Fecha</label>
+              <input type="date" name="date" class="form-control bg-dark text-light border-secondary">
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label">NO₃ (mg/L)</label>
+              <input name="nitrate" class="form-control bg-dark text-light border-secondary" placeholder="p.ej. 5.0">
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label">PO₄ (mg/L)</label>
+              <input name="phosphate" class="form-control bg-dark text-light border-secondary" placeholder="0.05">
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label">KH (dKH)</label>
+              <input name="kh" class="form-control bg-dark text-light border-secondary" placeholder="8.0">
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label">Mg (ppm)</label>
+              <input name="magnesium" class="form-control bg-dark text-light border-secondary" placeholder="1350">
+            </div>
+            <div class="col-6 col-md-4">
+              <label class="form-label">Ca (ppm)</label>
+              <input name="calcium" class="form-control bg-dark text-light border-secondary" placeholder="430">
+            </div>
+          </div>
+          <button class="btn btn-success mt-3">Guardar registro</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card bg-black border-secondary">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <h5 class="card-title m-0">Evolución</h5>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input metric-toggle" type="checkbox" value="nitrate" id="mNO3" checked>
+            <label class="form-check-label" for="mNO3">NO₃</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input metric-toggle" type="checkbox" value="phosphate" id="mPO4" checked>
+            <label class="form-check-label" for="mPO4">PO₄</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input metric-toggle" type="checkbox" value="kh" id="mKH" checked>
+            <label class="form-check-label" for="mKH">KH</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input metric-toggle" type="checkbox" value="magnesium" id="mMg">
+            <label class="form-check-label" for="mMg">Mg</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input metric-toggle" type="checkbox" value="calcium" id="mCa">
+            <label class="form-check-label" for="mCa">Ca</label>
+          </div>
+        </div>
+        <canvas id="evolutionChart" class="mt-3"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__SELECTED_AQUARIUM__ = {{ selected_id or 'null' }};
+</script>
+{% endblock %}
