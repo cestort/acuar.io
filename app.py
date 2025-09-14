@@ -1,36 +1,64 @@
 import os
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory
+from flask import (
+    Flask, render_template, request, redirect,
+    url_for, flash, jsonify, send_from_directory
+)
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 
-# --- Config ---
-DB_DIR = os.getenv("DB_DIR", os.path.join(os.getcwd(), "data"))
-os.makedirs(DB_DIR, exist_ok=True)
-UPLOAD_DIR = os.path.join(DB_DIR, "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# =========================================================
+# Configuración de Base de Datos
+# - Producción: usar env var DATABASE_URL (Supabase Postgres)
+#     ej: postgresql://postgres:PASS@HOST:5432/postgres?sslmode=require
+# - Desarrollo: fallback a SQLite en ./data/acuarios.db
+# =========================================================
+DEFAULT_DB_DIR = os.path.join(os.getcwd(), "data")
+os.makedirs(DEFAULT_DB_DIR, exist_ok=True)
+SQLITE_PATH = os.path.join(DEFAULT_DB_DIR, "acuarios.db")
 
-DB_PATH = os.path.join(DB_DIR, "acuarios.db")
-DATABASE_URI = f"sqlite:///{DB_PATH}"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL:
+    # Normaliza postgres:// -> postgresql:// si fuese necesario
+    DATABASE_URI = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+else:
+    DATABASE_URI = f"sqlite:///{SQLITE_PATH}"
 
+# =========================================================
+# Configuración de uploads (imágenes)
+# - En Render Free el FS es efímero. Sirve para pruebas.
+# =========================================================
+DEFAULT_UPLOAD_BASE = os.path.join(DEFAULT_DB_DIR, "uploads")
+UPLOAD_BASE = os.getenv("UPLOAD_DIR", DEFAULT_UPLOAD_BASE)
+os.makedirs(UPLOAD_BASE, exist_ok=True)
+
+# =========================================================
+# App Flask
+# =========================================================
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
-app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
-app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024  # 4 MB
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev")
+app.config["UPLOAD_FOLDER"] = UPLOAD_BASE
+app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024  # 4 MB por imagen
 
 db = SQLAlchemy(app)
 
-# --- Models ---
+# =========================================================
+# Modelos
+# =========================================================
 class Aquarium(db.Model):
     __tablename__ = "aquariums"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False, unique=True)
     created_at = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     image_path = db.Column(db.String(255), nullable=True)
-
-    measurements = db.relationship("Measurement", backref="aquarium", cascade="all,delete-orphan", lazy=True)
+    measurements = db.relationship(
+        "Measurement",
+        backref="aquarium",
+        cascade="all,delete-orphan",
+        lazy=True
+    )
 
 class Measurement(db.Model):
     __tablename__ = "measurements"
@@ -38,23 +66,35 @@ class Measurement(db.Model):
     aquarium_id = db.Column(db.Integer, db.ForeignKey("aquariums.id"), nullable=False)
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
 
-    nitrate = db.Column(db.Float, nullable=True)    # NO3
-    phosphate = db.Column(db.Float, nullable=True)  # PO4
+    nitrate = db.Column(db.Float, nullable=True)    # NO3 (mg/L)
+    phosphate = db.Column(db.Float, nullable=True)  # PO4 (mg/L)
     kh = db.Column(db.Float, nullable=True)         # dKH
-    magnesium = db.Column(db.Integer, nullable=True)
-    calcium = db.Column(db.Integer, nullable=True)
+    magnesium = db.Column(db.Integer, nullable=True)  # ppm
+    calcium = db.Column(db.Integer, nullable=True)    # ppm
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# --- One-time init ---
+# Crear tablas (si no existen)
 with app.app_context():
     db.create_all()
 
-# --- Routes ---
+# =========================================================
+# Utilidades
+# =========================================================
+def _to_float(val: str | None):
+    v = (val or "").replace(",", ".").strip()
+    return float(v) if v else None
+
+def _to_int(val: str | None):
+    v = (val or "").strip()
+    return int(v) if v else None
+
+# =========================================================
+# Rutas
+# =========================================================
 @app.route("/")
 def home():
     aquariums = Aquarium.query.order_by(Aquarium.name.asc()).all()
-    # Si no hay selección, coge el primero (si existe)
     selected_id = request.args.get("aquarium_id", type=int)
     if selected_id is None and aquariums:
         selected_id = aquariums[0].id
@@ -89,78 +129,6 @@ def create_aquarium():
 
     return redirect(url_for("home"))
 
-@app.route("/aquarium/<int:aq_id>/image")
-def aquarium_image(aq_id):
-    aq = Aquarium.query.get_or_404(aq_id)
-    if not aq.image_path:
-        return "", 404
-    return send_from_directory(app.config["UPLOAD_FOLDER"], aq.image_path)
-
-@app.route("/measurement", methods=["POST"])
-def create_measurement():
-    aquarium_id = request.form.get("aquarium_id", type=int)
-    if not aquarium_id:
-        flash("Selecciona un acuario.", "danger")
-        return redirect(url_for("home"))
-
-    date_str = request.form.get("date", "").strip()
-    date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.utcnow().date()
-
-    def to_float(val):
-        v = (val or "").replace(",", ".").strip()
-        return float(v) if v else None
-
-    def to_int(val):
-        v = (val or "").strip()
-        return int(v) if v else None
-
-    nitrate = to_float(request.form.get("nitrate"))
-    phosphate = to_float(request.form.get("phosphate"))
-    kh = to_float(request.form.get("kh"))
-    magnesium = to_int(request.form.get("magnesium"))
-    calcium = to_int(request.form.get("calcium"))
-
-    try:
-        m = Measurement(
-            aquarium_id=aquarium_id,
-            date=date,
-            nitrate=nitrate,
-            phosphate=phosphate,
-            kh=kh,
-            magnesium=magnesium,
-            calcium=calcium,
-        )
-        db.session.add(m)
-        db.session.commit()
-        flash("Registro guardado.", "success")
-    except Exception as e:
-        db.session.rollback()
-        flash(f"Error guardando registro: {e}", "danger")
-
-    return redirect(url_for("home", aquarium_id=aquarium_id))
-
-# --- API para la gráfica ---
-@app.route("/api/measurements/<int:aq_id>")
-def api_measurements(aq_id):
-    q = (
-        Measurement.query
-        .filter(Measurement.aquarium_id == aq_id)
-        .order_by(Measurement.date.asc())
-        .all()
-    )
-    data = []
-    for r in q:
-        data.append({
-            "date": r.date.strftime("%Y-%m-%d"),
-            "nitrate": r.nitrate,
-            "phosphate": r.phosphate,
-            "kh": r.kh,
-            "magnesium": r.magnesium,
-            "calcium": r.calcium,
-        })
-    return jsonify(data)
-
-# --- Edición rápida de acuario (nombre y fecha) ---
 @app.route("/aquarium/<int:aq_id>", methods=["POST"])
 def update_aquarium(aq_id):
     aq = Aquarium.query.get_or_404(aq_id)
@@ -187,5 +155,70 @@ def update_aquarium(aq_id):
         flash(f"Error actualizando: {e}", "danger")
     return redirect(url_for("home", aquarium_id=aq.id))
 
+@app.route("/aquarium/<int:aq_id>/image")
+def aquarium_image(aq_id):
+    aq = Aquarium.query.get_or_404(aq_id)
+    if not aq.image_path:
+        return "", 404
+    return send_from_directory(app.config["UPLOAD_FOLDER"], aq.image_path)
+
+@app.route("/measurement", methods=["POST"])
+def create_measurement():
+    aquarium_id = request.form.get("aquarium_id", type=int)
+    if not aquarium_id:
+        flash("Selecciona un acuario.", "danger")
+        return redirect(url_for("home"))
+
+    date_str = request.form.get("date", "").strip()
+    date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else datetime.utcnow().date()
+
+    nitrate = _to_float(request.form.get("nitrate"))
+    phosphate = _to_float(request.form.get("phosphate"))
+    kh = _to_float(request.form.get("kh"))
+    magnesium = _to_int(request.form.get("magnesium"))
+    calcium = _to_int(request.form.get("calcium"))
+
+    try:
+        m = Measurement(
+            aquarium_id=aquarium_id,
+            date=date,
+            nitrate=nitrate,
+            phosphate=phosphate,
+            kh=kh,
+            magnesium=magnesium,
+            calcium=calcium,
+        )
+        db.session.add(m)
+        db.session.commit()
+        flash("Registro guardado.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error guardando registro: {e}", "danger")
+
+    return redirect(url_for("home", aquarium_id=aquarium_id))
+
+@app.route("/api/measurements/<int:aq_id>")
+def api_measurements(aq_id):
+    q = (
+        Measurement.query
+        .filter(Measurement.aquarium_id == aq_id)
+        .order_by(Measurement.date.asc())
+        .all()
+    )
+    data = []
+    for r in q:
+        data.append({
+            "date": r.date.strftime("%Y-%m-%d"),
+            "nitrate": r.nitrate,
+            "phosphate": r.phosphate,
+            "kh": r.kh,
+            "magnesium": r.magnesium,
+            "calcium": r.calcium,
+        })
+    return jsonify(data)
+
+# =========================================================
+# Main
+# =========================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
