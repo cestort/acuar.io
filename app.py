@@ -1,6 +1,7 @@
 import os
 import re
-from datetime import datetime
+from datetime import datetime, date as _date
+
 from flask import (
     Flask, render_template, request, redirect,
     url_for, flash, jsonify, send_from_directory
@@ -214,25 +215,78 @@ def create_measurement():
 
     return redirect(url_for("home", aquarium_id=aquarium_id))
 
+
+
 @app.route("/api/measurements/<int:aq_id>")
 def api_measurements(aq_id):
-    q = (
-        Measurement.query
-        .filter(Measurement.aquarium_id == aq_id)
-        .order_by(Measurement.date.asc())
-        .all()
-    )
-    data = []
-    for r in q:
-        data.append({
-            "date": r.date.strftime("%Y-%m-%d"),
-            "nitrate": r.nitrate,
-            "phosphate": r.phosphate,
-            "kh": r.kh,
-            "magnesium": r.magnesium,
-            "calcium": r.calcium,
-        })
-    return jsonify(data)
+    try:
+        # Verificar que el acuario existe
+        aquarium = Aquarium.query.get(aq_id)
+        if not aquarium:
+            return jsonify({"error": "Aquarium not found"}), 404
+            
+        measurements = (
+            Measurement.query
+            .filter(Measurement.aquarium_id == aq_id)
+            .order_by(Measurement.date.asc())
+            .all()
+        )
+        
+        data = []
+        for measurement in measurements:
+            # Manejo robusto de fechas
+            date_str = None
+            if measurement.date:
+                if isinstance(measurement.date, (datetime, _date)):
+                    date_str = measurement.date.strftime("%Y-%m-%d")
+                else:
+                    # Si por alguna razón está como string
+                    try:
+                        parsed_date = datetime.fromisoformat(str(measurement.date))
+                        date_str = parsed_date.strftime("%Y-%m-%d")
+                    except Exception:
+                        # Si no se puede parsear, usar la fecha de creación como fallback
+                        if measurement.created_at:
+                            date_str = measurement.created_at.strftime("%Y-%m-%d")
+            
+            # Solo agregar registros con fecha válida
+            if date_str:
+                data.append({
+                    "id": measurement.id,
+                    "date": date_str,
+                    "nitrate": measurement.nitrate,
+                    "phosphate": measurement.phosphate,
+                    "kh": measurement.kh,
+                    "magnesium": measurement.magnesium,
+                    "calcium": measurement.calcium,
+                })
+        
+        return jsonify(data)
+        
+    except Exception as e:
+        print(f"Error in api_measurements: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+    
+
+@app.route("/api/aquariums")
+def api_aquariums():
+    """Endpoint para obtener datos de todos los acuarios con sus imágenes"""
+    try:
+        aquariums = Aquarium.query.order_by(Aquarium.name.asc()).all()
+        data = []
+        for aq in aquariums:
+            aquarium_data = {
+                "id": aq.id,
+                "name": aq.name,
+                "created_at": aq.created_at.strftime("%Y-%m-%d") if aq.created_at else None,
+                "image_url": url_for('aquarium_image', aq_id=aq.id) if aq.image_path else None,
+                "has_image": bool(aq.image_path)
+            }
+            data.append(aquarium_data)
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error in api_aquariums: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 # ---------------------------------------------------------
 # Diagnóstico rápido de conexión (útil para verificar Supabase)

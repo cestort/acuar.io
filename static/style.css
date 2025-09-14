@@ -1,2 +1,210 @@
-.card { border-radius: 1rem; }
-canvas { min-height: 360px; }
+.card { 
+  border-radius: 1rem; 
+}
+
+/* Contenedor del gráfico con tamaño fijo */
+.chart-container {
+  position: relative;
+  height: 360px !important;
+  width: 100%;
+}
+
+canvas { 
+  min-height: 360px;
+  max-height: 360px;
+  height: 360px !important;
+}
+
+/* Mejorar la visualización de los checkboxes de métricas */
+.metric-toggles {
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.form-check-inline {
+  margin-right: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Asegurar que los controles no se desplacen */
+.metrics-controls {
+  min-height: 40px;
+  align-items: center;
+}
+
+/* ===== BOTONES FLOTANTES ===== */
+.floating-buttons {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.btn-floating {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.btn-floating:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.btn-floating:active {
+  transform: translateY(0);
+}
+
+/* Tooltips para móviles */
+.btn-floating::after {
+  content: attr(title);
+  position: absolute;
+  right: 70px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.btn-floating:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Ocultar tooltips nativos en hover */
+.btn-floating[title]:hover::before {
+  display: none;
+}
+
+/* ===== MODALES ===== */
+.modal-content {
+  border-radius: 1rem;
+  border: 1px solid #495057;
+}
+
+.modal-header {
+  border-radius: 1rem 1rem 0 0;
+}
+
+.modal-footer {
+  border-radius: 0 0 1rem 1rem;
+}
+
+.form-control:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* ===== BADGES INFORMATIVOS ===== */
+.badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* ===== ICONOS BOOTSTRAP (si no están incluidos) ===== */
+.bi {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}
+
+/* Iconos SVG como fallback si no se cargan los de Bootstrap Icons */
+.btn-floating .bi-plus-lg::before {
+  content: "✚";
+}
+
+.btn-floating .bi-clipboard-plus::before {
+  content: "📋";
+}
+
+.btn-floating .bi-pencil::before {
+  content: "✏️";
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .floating-buttons {
+    bottom: 1rem;
+    right: 1rem;
+    gap: 0.75rem;
+  }
+  
+  .btn-floating {
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+  
+  .btn-floating::after {
+    display: none; /* Ocultar tooltips en móviles */
+  }
+  
+  .metrics-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .metric-toggles {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+
+@media (max-width: 576px) {
+  .floating-buttons {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    flex-direction: row;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 1rem 1rem 0 0;
+  }
+  
+  .btn-floating {
+    position: relative;
+  }
+}
+
+/* ===== ANIMACIONES ===== */
+.card {
+  transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Animación para mostrar/ocultar modales */
+.modal.fade .modal-dialog {
+  transition: transform 0.3s ease-out;
+  transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog {
+  transform: none;
+}
