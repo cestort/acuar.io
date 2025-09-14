@@ -1,15 +1,17 @@
 import os
+import re
 from datetime import datetime
 from flask import (
     Flask, render_template, request, redirect,
     url_for, flash, jsonify, send_from_directory
 )
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from werkzeug.utils import secure_filename
 
 # =========================================================
 # Configuración de Base de Datos
-# - Producción: usar env var DATABASE_URL (Supabase Postgres)
+# - Producción (Render): usar env var DATABASE_URL (Supabase Postgres)
 #     ej: postgresql://postgres:PASS@HOST:5432/postgres?sslmode=require
 # - Desarrollo: fallback a SQLite en ./data/acuarios.db
 # =========================================================
@@ -18,6 +20,13 @@ os.makedirs(DEFAULT_DB_DIR, exist_ok=True)
 SQLITE_PATH = os.path.join(DEFAULT_DB_DIR, "acuarios.db")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+# En Render queremos que falle si no hay DATABASE_URL (para no caer a SQLite sin querer)
+if os.getenv("RENDER") and not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL no definida en Render. Configúrala con tu cadena de Supabase."
+    )
+
 if DATABASE_URL:
     # Normaliza postgres:// -> postgresql:// si fuese necesario
     DATABASE_URI = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -66,17 +75,22 @@ class Measurement(db.Model):
     aquarium_id = db.Column(db.Integer, db.ForeignKey("aquariums.id"), nullable=False)
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
 
-    nitrate = db.Column(db.Float, nullable=True)    # NO3 (mg/L)
-    phosphate = db.Column(db.Float, nullable=True)  # PO4 (mg/L)
-    kh = db.Column(db.Float, nullable=True)         # dKH
-    magnesium = db.Column(db.Integer, nullable=True)  # ppm
-    calcium = db.Column(db.Integer, nullable=True)    # ppm
+    nitrate = db.Column(db.Float, nullable=True)     # NO3 (mg/L)
+    phosphate = db.Column(db.Float, nullable=True)   # PO4 (mg/L)
+    kh = db.Column(db.Float, nullable=True)          # dKH
+    magnesium = db.Column(db.Integer, nullable=True) # ppm
+    calcium = db.Column(db.Integer, nullable=True)   # ppm
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Crear tablas (si no existen)
+# Crear tablas (si no existen) con logs claros
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        print("✅ Tablas creadas/verificadas correctamente.")
+    except Exception as e:
+        print(f"❌ Error al crear tablas: {e}")
+        raise
 
 # =========================================================
 # Utilidades
@@ -88,6 +102,9 @@ def _to_float(val: str | None):
 def _to_int(val: str | None):
     v = (val or "").strip()
     return int(v) if v else None
+
+def _mask_url(url: str) -> str:
+    return re.sub(r":([^:@/]+)@", r":******@", str(url))
 
 # =========================================================
 # Rutas
@@ -216,6 +233,28 @@ def api_measurements(aq_id):
             "calcium": r.calcium,
         })
     return jsonify(data)
+
+# ---------------------------------------------------------
+# Diagnóstico rápido de conexión (útil para verificar Supabase)
+# ---------------------------------------------------------
+@app.route("/_diag/db")
+def diag_db():
+    try:
+        with db.engine.connect() as con:
+            dbname = con.execute(text("select current_database()")).scalar()
+            schema = con.execute(text("select current_schema()")).scalar()
+            tables = [r[0] for r in con.execute(
+                text("select tablename from pg_tables where schemaname=:s"),
+                {"s": "public"}
+            )]
+        return jsonify({
+            "engine_url": _mask_url(db.engine.url),
+            "current_database": dbname,
+            "current_schema": schema,
+            "public_tables": tables
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =========================================================
 # Main
