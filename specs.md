@@ -118,6 +118,8 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
 - El KH Guardian no lleva módulo AIM-S: solo da KH y el pH de la muestra.
 - Un único **recolector en casa** (p. ej. una Raspberry Pi o un equipo siempre encendido) leerá los dispositivos de la red local y enviará las medidas a la app del VPS a través de WireGuard.
 - Así se podrán sumar otras sondas en el futuro sin exponer nada de casa a internet.
+- Requisitos mínimos del equipo: Linux con Python 3, cliente WireGuard, red local y (si se usan sondas con OpenBeken) un broker MQTT. Basta con 512 MB de RAM.
+- Candidatos: un equipo que ya esté siempre encendido (NAS, mini PC, router con OpenWrt, móvil Android viejo con Termux) o una placa dedicada (Raspberry Pi Zero 2 W —agotada en 2026—, Raspberry Pi 3 A+). Un ESP32 no ejecuta Python normal y complica el scraping del KH Guardian.
 
 #### Otras sondas (investigación, sin decidir)
 - **Monitores WiFi "7/8 en 1" tipo Tuya** (pH, ORP, EC/TDS, salinidad, densidad, temperatura):
