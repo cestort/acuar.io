@@ -4,7 +4,7 @@
 
 ## 1. Objetivo
 
-Aplicación para llevar el control de los parámetros de un acuario marino, consultable desde un móvil Android. Incluye un chat en el que el modelo consulta los datos mediante SQL para responder preguntas sobre tendencias, resúmenes, etc.
+Aplicación para llevar el control de los parámetros de un acuario marino, consultable desde un móvil Android. Incluye un chat que responde preguntas sobre tendencias, resúmenes, etc., consultando los datos por SQL y buscando en notas y documentación mediante RAG.
 
 ## 2. Repositorio
 
@@ -18,7 +18,9 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
                                        ├── Contenedor Docker: app Django (Python) + SQLite (volumen)
                                        └── Contenedor Docker: ntfy (alertas)
                                                 │
-                           app Django --(HTTPS)--> OpenRouter API (DeepSeek V4 Flash)
+                           app Django --(HTTPS)--> OpenRouter API
+                                                    ├── Chat: DeepSeek V4 Flash
+                                                    └── Embeddings: bge-m3
 
 [GitHub Actions] --(SSH público, solo clave)--> [VPS]
 ```
@@ -41,20 +43,34 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
   - Comprobación de rangos y envío de alertas.
 
 ### 4.3 Base de datos
-- **SQLite** (sin pgvector, sin embeddings).
+- **SQLite** (sin Postgres ni pgvector).
 - Fichero en un volumen Docker persistente, fuera del contenedor.
-- Búsqueda de texto (notas, diario, documentación) con **SQLite FTS5**.
+- Búsqueda de texto (notas, diario, documentación):
+  - Por palabras clave con **SQLite FTS5**.
+  - Por significado con vectores guardados en SQLite mediante la extensión **sqlite-vec**.
 
-### 4.4 Chat
+### 4.4 Embeddings
+- Servicio: **OpenRouter**, modelo **bge-m3** (multilingüe), con la misma clave de API que el chat.
+- Sin modelo local: no consume RAM ni CPU del VPS.
+- Uso:
+  - Al guardar una nota, entrada del diario o documento, se trocea el texto y se calcula el embedding de cada fragmento.
+  - Al preguntar en el chat, se calcula el embedding de la pregunta para buscar los fragmentos más parecidos.
+- El indexado se hace en segundo plano y es reintentable: si OpenRouter falla, el dato se guarda igual y el embedding queda pendiente.
+- Se guarda qué modelo generó cada vector, para poder reindexar si se cambia de modelo.
+- Nota de privacidad: el texto de notas, diario y documentos se envía a OpenRouter (igual que las consultas del chat).
+
+### 4.5 Chat
 - Consultas en lenguaje natural sobre tendencias, resúmenes, etc.
 - Modelo LLM: DeepSeek V4 Flash, a través de la API de OpenRouter.
-- Enfoque: **el modelo genera consultas SQL** (vía *function calling*) sobre la base de datos, en lugar de RAG vectorial.
+- Enfoque híbrido mediante *function calling*:
+  - **Datos numéricos** (mediciones, tendencias, medias): el modelo genera consultas SQL.
+  - **Texto** (notas, diario, documentación): herramienta de búsqueda que combina FTS5 y similitud de embeddings (RAG).
 - El modelo recibe el esquema de las tablas en el prompt de sistema.
 - Fuentes consultables:
   - Mediciones de parámetros.
   - Notas de las mediciones.
   - Diario de mantenimiento (cambios de agua, dosificación, altas de corales/peces, etc.).
-  - Documentación subida por el usuario (guías, manuales de química marina), indexada con FTS5.
+  - Documentación subida por el usuario (guías, manuales de química marina), indexada con FTS5 y embeddings.
     - Formatos admitidos: **PDF** (se extrae el texto al subirlo) y **Markdown / texto plano**.
 - El chat es **solo de consulta**: no registra ni modifica datos. Las mediciones y el diario se introducen por formulario.
 - Seguridad de las consultas del modelo:
@@ -62,17 +78,17 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
   - Solo se permiten sentencias `SELECT`.
   - Límite de filas devueltas y tiempo máximo por consulta.
 
-### 4.5 Cliente
+### 4.6 Cliente
 - **PWA** servida por Django, instalable en el móvil Android.
 - Accesible solo a través de la VPN WireGuard.
 - Debe poder leer y recibir los distintos parámetros del acuario.
 
-### 4.6 Origen de los datos
+### 4.7 Origen de los datos
 - Fase inicial: **introducción manual** de las mediciones.
 - Futuro: integración con un **KH Guardian** para registrar sus mediciones automáticamente.
 - El modelo de datos debe registrar la fuente de cada medición (manual / dispositivo) para admitir nuevas integraciones sin rehacerlo.
 
-### 4.7 Parámetros
+### 4.8 Parámetros
 Parámetros predefinidos desde el inicio:
 
 | Grupo | Parámetros |
@@ -84,7 +100,7 @@ Parámetros predefinidos desde el inicio:
 - Además, **parámetros configurables**: el usuario puede añadir parámetros propios desde la app (nombre, unidad, rango objetivo).
 - Cada parámetro tiene un rango objetivo (mínimo / máximo) editable, que se usa para las alertas.
 
-### 4.8 Alertas
+### 4.9 Alertas
 - Alerta cuando una medición queda fuera del rango objetivo de su parámetro.
 - Canal: **ntfy autoalojado** en el VPS; el móvil recibe los avisos a través de la VPN con la app ntfy.
 
