@@ -10,8 +10,8 @@ En el VPS corren dos contenedores, con los puertos publicados **solo en la IP de
 
 | Servicio | Puerto | Para qué |
 |---|---|---|
-| `app` (Django + gunicorn) | `WG_BIND_IP:8000` | La aplicación |
-| `ntfy` | `WG_BIND_IP:8080` | Notificaciones de alertas |
+| `app` (Django + gunicorn) | `WG_BIND_IP:7733` | La aplicación |
+| `ntfy` | `WG_BIND_IP:7734` | Notificaciones de alertas |
 
 Los datos (SQLite y la caché de ntfy) están en volúmenes de Docker, así que un despliegue nunca los borra.
 
@@ -64,8 +64,9 @@ En el repositorio: **Settings → Secrets and variables → Actions**.
 | `WG_BIND_IP` | Sí | IP del VPS dentro de la VPN, p. ej. `10.8.0.1` |
 | `VPS_SSH_PORT` | No | Puerto SSH si no es el 22 |
 | `DEPLOY_PATH` | No | Directorio de la app si no es `/opt/acuario` |
-| `APP_PORT` | No | Puerto de la app (por defecto `8000`) |
-| `NTFY_PORT` | No | Puerto de ntfy (por defecto `8080`) |
+| `APP_PORT` | No | Puerto de la app (por defecto `7733`) |
+| `NTFY_PORT` | No | Puerto de ntfy (por defecto `7734`) |
+| `BIND_IP` | No | IP donde se publican los puertos (por defecto, `WG_BIND_IP`). Con `0.0.0.0` quedan abiertos a internet: Docker se salta UFW |
 
 Mientras `WG_BIND_IP` no exista, el workflow solo ejecuta los tests y se salta el despliegue.
 
@@ -75,8 +76,8 @@ Cualquier push a `main` despliega. Para lanzar el primer despliegue sin hacer ca
 
 Tras el despliegue, desde el móvil con la VPN conectada:
 
-- App: `http://WG_BIND_IP:8000`
-- ntfy: instala la app **ntfy** de Android y añade el servidor `http://WG_BIND_IP:8080`.
+- App: `http://WG_BIND_IP:7733`
+- ntfy: instala la app **ntfy** de Android y añade el servidor `http://WG_BIND_IP:7734`.
 
 En el cliente WireGuard del móvil, `AllowedIPs` debe incluir la IP del VPS en la VPN (p. ej. `10.8.0.1/32` o toda la subred).
 

@@ -107,6 +107,8 @@ Parámetros predefinidos desde el inicio:
 ## 5. Red y seguridad
 - La conexión entre el cliente Android y el VPS se hace mediante VPN WireGuard.
 - La app Django y ntfy solo escuchan en la interfaz de la VPN.
+- Puertos propios para no chocar con otros proyectos del VPS: **app en 7733**, **ntfy en 7734** (configurables).
+- La IP de publicación es configurable (`BIND_IP`); por defecto la de WireGuard. Docker se salta UFW, así que publicar en `0.0.0.0` abriría los puertos a internet.
 - **Sin login en la app**: la VPN es la única barrera de acceso.
 - SSH abierto al público **solo con autenticación por clave** (sin contraseña), usado por el despliegue.
 

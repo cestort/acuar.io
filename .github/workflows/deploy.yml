@@ -98,14 +98,17 @@ jobs:
       - name: Generar .env de producción
         env:
           WG_BIND_IP: ${{ vars.WG_BIND_IP }}
-          APP_PORT: ${{ vars.APP_PORT || '8000' }}
-          NTFY_PORT: ${{ vars.NTFY_PORT || '8080' }}
+          # Por defecto los puertos solo se publican en la IP de WireGuard.
+          BIND_IP: ${{ vars.BIND_IP || vars.WG_BIND_IP }}
+          APP_PORT: ${{ vars.APP_PORT || '7733' }}
+          NTFY_PORT: ${{ vars.NTFY_PORT || '7734' }}
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           umask 077
           {
             echo "WG_BIND_IP=$WG_BIND_IP"
+            echo "BIND_IP=$BIND_IP"
             echo "APP_PORT=$APP_PORT"
             echo "NTFY_PORT=$NTFY_PORT"
             echo "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"

@@ -1,8 +1,13 @@
-# Despliegue en el VPS. Los puertos solo se publican en la IP de WireGuard,
-# así que la app y ntfy no son accesibles desde internet.
+# Despliegue en el VPS.
 #
 # Variables leídas del fichero .env de este directorio (lo genera GitHub Actions):
-#   WG_BIND_IP, APP_PORT, NTFY_PORT, DJANGO_SECRET_KEY, OPENROUTER_API_KEY...
+#   BIND_IP     IP donde se publican los puertos. Por defecto la IP de WireGuard,
+#               así la app y ntfy no son accesibles desde internet.
+#   WG_BIND_IP  IP del VPS dentro de la VPN (la que usa el móvil).
+#   APP_PORT, NTFY_PORT, DJANGO_SECRET_KEY, OPENROUTER_API_KEY...
+#
+# Ojo: Docker publica los puertos saltándose UFW. Con BIND_IP=0.0.0.0 los puertos
+# quedarían abiertos a internet aunque el cortafuegos diga lo contrario.
 
 name: acuario
 
@@ -17,7 +22,7 @@ services:
       DJANGO_DEBUG: "false"
       NTFY_URL: http://ntfy
     ports:
-      - "${WG_BIND_IP:?Define WG_BIND_IP en .env}:${APP_PORT:-8000}:8000"
+      - "${BIND_IP:?Define BIND_IP en .env}:${APP_PORT:-7733}:8000"
     volumes:
       - app_data:/data
     depends_on:
@@ -28,13 +33,13 @@ services:
     command: serve
     restart: unless-stopped
     environment:
-      NTFY_BASE_URL: http://${WG_BIND_IP}:${NTFY_PORT:-8080}
+      NTFY_BASE_URL: http://${WG_BIND_IP:?Define WG_BIND_IP en .env}:${NTFY_PORT:-7734}
       NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
       NTFY_CACHE_DURATION: 72h
       NTFY_BEHIND_PROXY: "false"
       TZ: Europe/Madrid
     ports:
-      - "${WG_BIND_IP}:${NTFY_PORT:-8080}:80"
+      - "${BIND_IP}:${NTFY_PORT:-7734}:80"
     volumes:
       - ntfy_cache:/var/cache/ntfy
 
