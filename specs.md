@@ -114,6 +114,17 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
   - Se guarda con la **fecha de la medida del equipo** (no la de importación) y una **restricción única** (parámetro, origen, fecha) para no duplicar.
   - En la primera ejecución importa el histórico desde `/SD_Dump`.
 
+#### Recolector en casa
+- El KH Guardian no lleva módulo AIM-S: solo da KH y el pH de la muestra.
+- Un único **recolector en casa** (p. ej. una Raspberry Pi o un equipo siempre encendido) leerá los dispositivos de la red local y enviará las medidas a la app del VPS a través de WireGuard.
+- Así se podrán sumar otras sondas en el futuro sin exponer nada de casa a internet.
+
+#### Otras sondas (investigación, sin decidir)
+- **Monitores WiFi "7/8 en 1" tipo Tuya** (pH, ORP, EC/TDS, salinidad, densidad, temperatura):
+  - Comprobar antes de comprar que su rango de salinidad/EC cubre el agua de mar: muchos están pensados para piscinas o hidroponía.
+  - Formas de leerlos en local: con la clave local de Tuya (tuya-local / LocalTuya), o cambiando el firmware del módulo WiFi por OpenBeken (probado en el modelo PH-W218, chip CB3S) para publicar por MQTT sin nube.
+- **Montaje casero con ESP32 + ESPHome**: sonda de pH (DFRobot o Atlas Scientific), temperatura y, opcionalmente, conductividad para la salinidad.
+
 ### 4.8 Parámetros
 Parámetros predefinidos desde el inicio:
 
@@ -171,6 +182,6 @@ Parámetros predefinidos desde el inicio:
 - **[PENDIENTE]** IP del VPS dentro de WireGuard: se usará en la variable `WG_BIND_IP` y en el registro de DuckDNS, que ahora apunta a la IP pública (82.223.152.7) y hay que cambiar.
 - **[PENDIENTE]** Ejecutar `scripts/setup-vps.sh` en el VPS y guardar en GitHub los secretos y variables, incluido `DUCKDNS_TOKEN`.
 - **[PENDIENTE]** KH Guardian:
-  - Dónde corre el recolector: en un equipo de casa, o en el VPS si WireGuard llega a la red de casa.
-  - Si tiene el módulo AIM-S (daría temperatura, salinidad y ORP).
+  - Sin módulo AIM-S: solo da KH y el pH de la muestra.
+  - El recolector correrá **en un equipo de casa** (misma red que el KH Guardian) y enviará los datos a la app del VPS. Falta decidir en qué equipo y cómo llega al VPS (por la VPN WireGuard).
   - Si su pH se registra como parámetro aparte del pH manual.
