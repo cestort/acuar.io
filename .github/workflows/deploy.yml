@@ -59,9 +59,14 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
         run: |
+          required="VPS_HOST VPS_USER VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS DJANGO_SECRET_KEY WG_BIND_IP"
+          # Con dominio se activa HTTPS (Caddy), que necesita el token de DuckDNS.
+          [ -n "$APP_DOMAIN" ] && required="$required DUCKDNS_TOKEN"
           missing=""
-          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS DJANGO_SECRET_KEY WG_BIND_IP; do
+          for name in $required; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
           if [ -n "$missing" ]; then
@@ -71,6 +76,10 @@ jobs:
           # Ruta absoluta de al menos dos niveles (p. ej. /opt/acuario), sin espacios ni comillas.
           if [[ ! "$DEPLOY_PATH" =~ ^(/[A-Za-z0-9._-]+){2,}$ ]]; then
             echo "::error::DEPLOY_PATH no válido: '$DEPLOY_PATH'"
+            exit 1
+          fi
+          if [ -n "$APP_DOMAIN" ] && [[ ! "$APP_DOMAIN" =~ ^[a-z0-9-]+\.duckdns\.org$ ]]; then
+            echo "::error::APP_DOMAIN debe ser un subdominio de duckdns.org: '$APP_DOMAIN'"
             exit 1
           fi
 
@@ -102,20 +111,43 @@ jobs:
           BIND_IP: ${{ vars.BIND_IP || vars.WG_BIND_IP }}
           APP_PORT: ${{ vars.APP_PORT || '7733' }}
           NTFY_PORT: ${{ vars.NTFY_PORT || '7734' }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          HTTPS_PORT: ${{ vars.HTTPS_PORT || '443' }}
+          NTFY_HTTPS_PORT: ${{ vars.NTFY_HTTPS_PORT || '8443' }}
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
           DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           umask 077
+          hosts="$WG_BIND_IP"
+          origins="http://$WG_BIND_IP:$APP_PORT"
+          ntfy_url="http://$WG_BIND_IP:$NTFY_PORT"
+          if [ -n "$APP_DOMAIN" ]; then
+            app_url="https://$APP_DOMAIN"
+            [ "$HTTPS_PORT" = "443" ] || app_url="$app_url:$HTTPS_PORT"
+            hosts="$hosts,$APP_DOMAIN"
+            origins="$origins,$app_url"
+            ntfy_url="https://$APP_DOMAIN:$NTFY_HTTPS_PORT"
+          fi
           {
             echo "WG_BIND_IP=$WG_BIND_IP"
             echo "BIND_IP=$BIND_IP"
             echo "APP_PORT=$APP_PORT"
             echo "NTFY_PORT=$NTFY_PORT"
+            echo "NTFY_BASE_URL=$ntfy_url"
             echo "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"
-            echo "DJANGO_ALLOWED_HOSTS=$WG_BIND_IP"
-            echo "DJANGO_CSRF_TRUSTED_ORIGINS=http://$WG_BIND_IP:$APP_PORT"
+            echo "DJANGO_ALLOWED_HOSTS=$hosts"
+            echo "DJANGO_CSRF_TRUSTED_ORIGINS=$origins"
             echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
             echo "TIME_ZONE=Europe/Madrid"
+            if [ -n "$APP_DOMAIN" ]; then
+              echo "COMPOSE_PROFILES=https"
+              echo "APP_DOMAIN=$APP_DOMAIN"
+              echo "HTTPS_PORT=$HTTPS_PORT"
+              echo "NTFY_HTTPS_PORT=$NTFY_HTTPS_PORT"
+              echo "DUCKDNS_TOKEN=$DUCKDNS_TOKEN"
+              echo "DJANGO_BEHIND_HTTPS_PROXY=true"
+            fi
           } > deploy.env
 
       - name: Subir código y .env
@@ -150,7 +182,7 @@ jobs:
             for i in \$(seq 1 30); do
               status=\$(docker inspect --format '{{.State.Health.Status}}' \"\$cid\")
               echo \"Intento \$i: \$status\"
-              [ \"\$status\" = healthy ] && exit 0
+              [ \"\$status\" = healthy ] && { docker compose ps; exit 0; }
               [ \"\$status\" = unhealthy ] && break
               sleep 3
             done

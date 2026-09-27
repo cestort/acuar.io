@@ -33,16 +33,39 @@ services:
     command: serve
     restart: unless-stopped
     environment:
-      NTFY_BASE_URL: http://${WG_BIND_IP:?Define WG_BIND_IP en .env}:${NTFY_PORT:-7734}
+      NTFY_BASE_URL: ${NTFY_BASE_URL:-http://${WG_BIND_IP:?Define WG_BIND_IP en .env}:${NTFY_PORT:-7734}}
       NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
       NTFY_CACHE_DURATION: 72h
-      NTFY_BEHIND_PROXY: "false"
+      NTFY_BEHIND_PROXY: "true"
       TZ: Europe/Madrid
     ports:
       - "${BIND_IP}:${NTFY_PORT:-7734}:80"
     volumes:
       - ntfy_cache:/var/cache/ntfy
 
+  # HTTPS con certificado de Let's Encrypt obtenido por DNS (DuckDNS).
+  # Solo se levanta con el perfil "https" (COMPOSE_PROFILES=https en .env).
+  caddy:
+    profiles: ["https"]
+    build: docker/caddy
+    image: acuario-caddy:latest
+    restart: unless-stopped
+    environment:
+      # El workflow comprueba que ambas estén definidas cuando se activa HTTPS.
+      APP_DOMAIN: ${APP_DOMAIN:-}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
+    ports:
+      - "${BIND_IP}:${HTTPS_PORT:-443}:443"
+      - "${BIND_IP}:${NTFY_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+      - ntfy
+
 volumes:
   app_data:
   ntfy_cache:
+  caddy_data:
+  caddy_config:

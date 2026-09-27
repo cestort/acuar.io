@@ -1,0 +1,29 @@
+# HTTPS para acuar.io. Solo se publica en la IP de WireGuard (ver docker-compose.yml).
+#
+# Variables de entorno:
+#   APP_DOMAIN     p. ej. acuario-esteve-macon.duckdns.org
+#   DUCKDNS_TOKEN  token de la cuenta de DuckDNS (reto DNS-01 de Let's Encrypt)
+
+{
+	# Sin puerto 80: la validación es por DNS y el 80 lo usa otro servicio del VPS.
+	auto_https disable_redirects
+}
+
+(duckdns_tls) {
+	tls {
+		dns duckdns {$DUCKDNS_TOKEN}
+	}
+}
+
+# La aplicación
+{$APP_DOMAIN}:443 {
+	import duckdns_tls
+	encode zstd gzip
+	reverse_proxy app:8000
+}
+
+# ntfy (notificaciones), mismo certificado en otro puerto
+{$APP_DOMAIN}:8443 {
+	import duckdns_tls
+	reverse_proxy ntfy:80
+}

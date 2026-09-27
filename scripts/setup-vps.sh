@@ -40,6 +40,25 @@ if [ -z "$WG_IP" ]; then
   WG_IP="<IP del VPS dentro de la VPN>"
 fi
 
+# ---------------------------------------------------------------- Puertos libres
+# app 7733, ntfy 7734 y, con HTTPS, Caddy en 443 (app) y 8443 (ntfy).
+PORTS_BUSY=""
+if ! command -v ss >/dev/null; then
+  warn "No encuentro 'ss' (paquete iproute2): no he podido comprobar si los puertos 7733, 7734, 443 y 8443 están libres."
+else
+  for port in 7733 7734 443 8443; do
+    # Ocupado si algo escucha en ese puerto en todas las IPs o en la de WireGuard.
+    if ss -Htln | awk '{print $4}' | grep -Eq "^(0\.0\.0\.0|\*|\[::\]|${WG_IP//./\\.}):${port}$"; then
+      PORTS_BUSY="$PORTS_BUSY $port"
+    fi
+  done
+  if [ -n "$PORTS_BUSY" ]; then
+    warn "Puertos ya en uso:$PORTS_BUSY. Cámbialos con las variables de GitHub (APP_PORT, NTFY_PORT, HTTPS_PORT, NTFY_HTTPS_PORT). Detalle: sudo ss -tlnp"
+  else
+    info "Puertos 7733, 7734, 443 y 8443 libres."
+  fi
+fi
+
 # ---------------------------------------------------------------- Usuario de despliegue
 if id "$DEPLOY_USER" >/dev/null 2>&1; then
   info "El usuario '$DEPLOY_USER' ya existe."

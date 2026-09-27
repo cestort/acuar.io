@@ -9,29 +9,36 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
 ## 2. Repositorio
 
 - Repo: https://github.com/cestort/acuar.io.git
-- Es un repo existente que se reutiliza: **se borrará todo su contenido actual** y se empezará desde cero.
+- Repo reutilizado: su contenido anterior se eliminó y el proyecto empezó desde cero (el código antiguo sigue en el historial, commit `df0a9db`).
 
 ## 3. Arquitectura general
 
 ```
-[Android (PWA)] --(WireGuard VPN)--> [VPS]
-                                       ├── Contenedor Docker: app Django (Python) + SQLite (volumen)
-                                       └── Contenedor Docker: ntfy (alertas)
+[Android (PWA)] --(WireGuard VPN)--> https://acuario-esteve-macon.duckdns.org  (DNS → IP de WireGuard del VPS)
+                                       │
+                                     [VPS] (Docker, proyecto "acuario")
+                                       ├── Caddy: HTTPS en 443 (app) y 8443 (ntfy), certificado Let's Encrypt por DNS (DuckDNS)
+                                       ├── app: Django + gunicorn, puerto 7733, SQLite en volumen
+                                       └── ntfy: alertas, puerto 7734
                                                 │
                            app Django --(HTTPS)--> OpenRouter API
                                                     ├── Chat: DeepSeek V4 Flash
                                                     └── Embeddings: bge-m3
 
 [GitHub Actions] --(SSH público, solo clave)--> [VPS]
+
+[KH Guardian] (red de casa, Ethernet) --> recolector --> API de la app   (futuro, ver 4.7)
 ```
 
 ## 4. Componentes
 
 ### 4.1 Servidor (VPS)
-- VPS ya existente y operativo.
-- Despliegue con Docker:
-  - Un contenedor para la aplicación Django. La base de datos SQLite vive en un volumen persistente.
-  - Un contenedor para ntfy (notificaciones).
+- VPS ya existente y operativo: Ubuntu, con Docker y WireGuard instalados.
+- En el VPS hay otros proyectos que usan DuckDNS y WireGuard, y un **nginx solo HTTP** (puerto 80) como proxy inverso. acuar.io **no toca ese nginx**: usa sus propios puertos y su propio Caddy.
+- Despliegue con Docker Compose (proyecto `acuario`):
+  - **app**: aplicación Django. La base de datos SQLite vive en un volumen persistente.
+  - **ntfy**: notificaciones.
+  - **caddy**: HTTPS. Servicio opcional (perfil `https`), se activa al definir el dominio.
 
 ### 4.2 Backend
 - Lenguaje: Python.
@@ -41,6 +48,7 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
   - Servir la PWA y exponer los datos al cliente.
   - Chat con el LLM, que consulta la base de datos mediante SQL.
   - Comprobación de rangos y envío de alertas.
+  - (Futuro) API para recibir mediciones de dispositivos.
 
 ### 4.3 Base de datos
 - **SQLite** (sin Postgres ni pgvector).
@@ -80,13 +88,31 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
 
 ### 4.6 Cliente
 - **PWA** servida por Django, instalable en el móvil Android.
-- Accesible solo a través de la VPN WireGuard.
+- URL: **https://acuario-esteve-macon.duckdns.org** (HTTPS, necesario para instalar la PWA completa en Chrome/Android).
+- Accesible solo a través de la VPN WireGuard: el dominio apunta a la IP del VPS dentro de la VPN.
 - Debe poder leer y recibir los distintos parámetros del acuario.
 
 ### 4.7 Origen de los datos
 - Fase inicial: **introducción manual** de las mediciones.
 - Futuro: integración con un **KH Guardian** para registrar sus mediciones automáticamente.
-- El modelo de datos debe registrar la fuente de cada medición (manual / dispositivo) para admitir nuevas integraciones sin rehacerlo.
+- El modelo de datos registra la fuente de cada medición (manual / dispositivo) para admitir nuevas integraciones sin rehacerlo.
+
+#### KH Guardian (investigación, sin decidir)
+- Equipo de **Dr. Bridge** (distribuido por D-D / CoralVue). Mide **KH** por titración cada 30–240 min y el **pH** de la muestra. Con el módulo opcional **AIM-S** añade temperatura, salinidad, pH y ORP.
+- Conexión solo por **Ethernet**, con interfaz web local en `http://IP:8090` (contraseña por defecto "Admin"). **No tiene API oficial**.
+- Forma de extraer datos (probada por la comunidad): iniciar sesión en la web local y leer:
+  - `GET /Default`: última medida (KH, pH, fecha).
+  - `GET /SD_Dump`: histórico completo guardado en la tarjeta SD.
+- Referencias: `github.com/cbleehk/khgtools` (Node.js, lectura local y deduplicado por fecha) y el script AppDaemon de marine-assistant.com.
+- Riesgos:
+  - Se basa en leer HTML: una actualización de firmware puede romperlo, así que el recolector debe avisar si no puede interpretar una medida.
+  - Las fechas del equipo no llevan año: hay que deducirlo y vigilar el reloj del equipo.
+  - Según usuarios, el pH que da está pensado para la titración (sonda calibrada en rango bajo); para vigilar el pH del acuario es mejor otra sonda.
+- Diseño propuesto:
+  - Un **recolector** pequeño (script Python) que lea el KH Guardian cada 15–30 min.
+  - Lo envía a un **endpoint de la app** autenticado con token.
+  - Se guarda con la **fecha de la medida del equipo** (no la de importación) y una **restricción única** (parámetro, origen, fecha) para no duplicar.
+  - En la primera ejecución importa el histórico desde `/SD_Dump`.
 
 ### 4.8 Parámetros
 Parámetros predefinidos desde el inicio:
@@ -103,12 +129,27 @@ Parámetros predefinidos desde el inicio:
 ### 4.9 Alertas
 - Alerta cuando una medición queda fuera del rango objetivo de su parámetro.
 - Canal: **ntfy autoalojado** en el VPS; el móvil recibe los avisos a través de la VPN con la app ntfy.
+- URL de ntfy: `https://acuario-esteve-macon.duckdns.org:8443` (o `http://IP-WireGuard:7734` sin HTTPS).
 
 ## 5. Red y seguridad
 - La conexión entre el cliente Android y el VPS se hace mediante VPN WireGuard.
-- La app Django y ntfy solo escuchan en la interfaz de la VPN.
-- Puertos propios para no chocar con otros proyectos del VPS: **app en 7733**, **ntfy en 7734** (configurables).
+- Todos los puertos se publican **solo en la IP de WireGuard** del VPS.
+- Puertos propios para no chocar con otros proyectos del VPS (todos configurables):
+
+| Servicio | Puerto |
+|---|---|
+| app (HTTP directo) | 7733 |
+| ntfy (HTTP directo) | 7734 |
+| Caddy → app (HTTPS) | 443 |
+| Caddy → ntfy (HTTPS) | 8443 |
+
 - La IP de publicación es configurable (`BIND_IP`); por defecto la de WireGuard. Docker se salta UFW, así que publicar en `0.0.0.0` abriría los puertos a internet.
+- **HTTPS**:
+  - Dominio: `acuario-esteve-macon.duckdns.org`, con registro A apuntando a la **IP de WireGuard** del VPS, no a la pública. Desde internet el dominio no lleva a ningún sitio.
+  - Certificado de Let's Encrypt obtenido por Caddy con el **reto DNS-01** a través de la API de DuckDNS: no necesita abrir puertos a internet.
+  - El token de DuckDNS se guarda en GitHub Secrets (`DUCKDNS_TOKEN`); controla todos los subdominios de la cuenta, así que se trata como una contraseña.
+  - Django confía en la cabecera `X-Forwarded-Proto` de Caddy (`DJANGO_BEHIND_HTTPS_PROXY`).
+  - Si algún DNS del móvil bloquea respuestas con IPs privadas (protección contra *DNS rebinding*), se usará el DNS del VPS en la configuración WireGuard del móvil.
 - **Sin login en la app**: la VPN es la única barrera de acceso.
 - SSH abierto al público **solo con autenticación por clave** (sin contraseña), usado por el despliegue.
 
@@ -116,14 +157,20 @@ Parámetros predefinidos desde el inicio:
 - Despliegue al VPS mediante GitHub Actions (`.github/workflows/deploy.yml`), en cada push a `main`.
 - Flujo: tests → subida del código por SSH → `docker compose up -d --build` en el VPS → espera a que `/health/` responda.
 - Acceso del runner al VPS por **SSH público con clave**, con un usuario `deploy` dedicado (miembro del grupo `docker`) y una clave exclusiva limitada con `restrict`.
-- La clave y el resto de secretos (clave de OpenRouter, `DJANGO_SECRET_KEY`, etc.) se guardan en GitHub Secrets; el workflow genera el `.env` del VPS en cada despliegue.
-- La imagen se construye en el propio VPS (sin registro de imágenes).
-- El despliegue no debe tocar el volumen de SQLite.
+- La clave y el resto de secretos (clave de OpenRouter, `DJANGO_SECRET_KEY`, `DUCKDNS_TOKEN`, etc.) se guardan en GitHub Secrets; el workflow genera el `.env` del VPS en cada despliegue.
+- Las imágenes (app y Caddy con el módulo de DuckDNS) se construyen en el propio VPS, sin registro de imágenes. La primera compilación de Caddy tarda unos minutos.
+- El despliegue no toca los volúmenes (SQLite, caché de ntfy, certificados de Caddy).
+- HTTPS se activa solo al definir la variable `APP_DOMAIN` en GitHub; sin ella se despliega solo por HTTP.
 - Docker arranca después de WireGuard (drop-in de systemd), porque los puertos se publican en la IP de la VPN.
-- Preparación del VPS con `scripts/setup-vps.sh` y guía completa en `DEPLOY.md`.
+- Preparación del VPS con `scripts/setup-vps.sh` (también comprueba que los puertos 7733, 7734, 443 y 8443 estén libres) y guía completa en `DEPLOY.md`.
 
 ## 7. Copias de seguridad
 - **De momento no.** A revisar más adelante (el fichero SQLite es fácil de copiar).
 
 ## 8. Decisiones pendientes
-- **[PENDIENTE]** HTTPS para la PWA: Chrome en Android solo permite instalar una PWA completa y usar *service workers* con HTTPS. Por HTTP a una IP solo se puede añadir un acceso directo. Opciones: dominio propio con certificado de Let's Encrypt (reto DNS, sin exponer nada a internet) o certificado de una CA propia instalada en el móvil.
+- **[PENDIENTE]** IP del VPS dentro de WireGuard: se usará en la variable `WG_BIND_IP` y en el registro de DuckDNS, que ahora apunta a la IP pública (82.223.152.7) y hay que cambiar.
+- **[PENDIENTE]** Ejecutar `scripts/setup-vps.sh` en el VPS y guardar en GitHub los secretos y variables, incluido `DUCKDNS_TOKEN`.
+- **[PENDIENTE]** KH Guardian:
+  - Dónde corre el recolector: en un equipo de casa, o en el VPS si WireGuard llega a la red de casa.
+  - Si tiene el módulo AIM-S (daría temperatura, salinidad y ORP).
+  - Si su pH se registra como parámetro aparte del pH manual.
