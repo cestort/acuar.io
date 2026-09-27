@@ -120,6 +120,10 @@ Aplicación para llevar el control de los parámetros de un acuario marino, cons
 - Así se podrán sumar otras sondas en el futuro sin exponer nada de casa a internet.
 - Requisitos mínimos del equipo: Linux con Python 3, cliente WireGuard, red local y (si se usan sondas con OpenBeken) un broker MQTT. Basta con 512 MB de RAM.
 - Candidatos: un equipo que ya esté siempre encendido (NAS, mini PC, router con OpenWrt, móvil Android viejo con Termux) o una placa dedicada (Raspberry Pi Zero 2 W —agotada en 2026—, Raspberry Pi 3 A+). Un ESP32 no ejecuta Python normal y complica el scraping del KH Guardian.
+- **Equipo disponible: NAS Synology DS212** (ARMv5 Marvell a 1,6 GHz, 256 MB de RAM, DSM 6.2, sin actualizaciones de seguridad desde 2024).
+  - Python 3.11 disponible en SynoCommunity para DSM 6.2 y su arquitectura (88f628x); el recolector se programaría con el Programador de tareas de DSM.
+  - Sin Docker.
+  - **Problema: WireGuard.** El núcleo de DSM 6.2 en este modelo es demasiado antiguo para el módulo de WireGuard; habría que usar la versión en espacio de usuario (wireguard-go compilado para ARMv5), sin garantías.
 
 #### Otras sondas (investigación, sin decidir)
 - **Monitores WiFi "7/8 en 1" tipo Tuya** (pH, ORP, EC/TDS, salinidad, densidad, temperatura):
