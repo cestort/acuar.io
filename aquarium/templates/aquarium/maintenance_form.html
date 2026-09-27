@@ -1,0 +1,24 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}{% if entry %}Editar entrada{% else %}Nueva entrada{% endif %} · acuar.io{% endblock %}
+
+{% block content %}
+  <h1>{% if entry %}Editar entrada{% else %}Nueva entrada{% endif %}</h1>
+
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% include "aquarium/_field.html" with field=form.occurred_at %}
+    {% include "aquarium/_field.html" with field=form.category %}
+    {% include "aquarium/_field.html" with field=form.title %}
+    {% include "aquarium/_field.html" with field=form.description %}
+    <button class="btn btn--primary btn--block" type="submit">Guardar</button>
+  </form>
+
+  {% if entry %}
+    <form method="post" action="{% url 'aquarium:maintenance_delete' entry.pk %}" class="danger-zone"
+          onsubmit="return confirm('¿Borrar esta entrada?');">
+      {% csrf_token %}
+      <button class="btn btn--danger btn--block" type="submit">Borrar entrada</button>
+    </form>
+  {% endif %}
+{% endblock %}

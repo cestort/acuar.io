@@ -1,0 +1,44 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b2530">
+  <title>{% block title %}acuar.io{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'aquarium/app.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'aquarium:dashboard' %}">acuar<span>.io</span></a>
+    {% block topbar_action %}{% endblock %}
+  </header>
+
+  <main class="page">
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <p class="message message--{{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% with name=request.resolver_match.url_name %}
+  <nav class="tabbar" aria-label="Navegación principal">
+    <a href="{% url 'aquarium:dashboard' %}" {% if name == 'dashboard' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12 12 4l9 8M5 10v10h14V10"/></svg>Inicio
+    </a>
+    <a href="{% url 'aquarium:measurement_add' %}" {% if name == 'measurement_add' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/></svg>Test
+    </a>
+    <a href="{% url 'aquarium:maintenance_list' %}" {% if name == 'maintenance_list' or name == 'maintenance_create' or name == 'maintenance_edit' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h11a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1zM9 8h6M9 12h6"/></svg>Diario
+    </a>
+    <a href="{% url 'aquarium:parameter_list' %}" {% if name == 'parameter_list' or name == 'parameter_create' or name == 'parameter_edit' %}aria-current="page"{% endif %}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Ajustes
+    </a>
+  </nav>
+  {% endwith %}
+</body>
+</html>

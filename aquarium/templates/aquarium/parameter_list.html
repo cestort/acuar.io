@@ -1,0 +1,26 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}Parámetros · acuar.io{% endblock %}
+
+{% block topbar_action %}
+  <a class="btn btn--primary btn--small" href="{% url 'aquarium:parameter_create' %}">+ Parámetro</a>
+{% endblock %}
+
+{% block content %}
+  <h1>Parámetros</h1>
+  <p class="lead">Edita los rangos objetivo o añade parámetros propios. Los inactivos no aparecen en el inicio ni al registrar tests.</p>
+
+  <section class="section">
+    {% for p in parameters %}
+      <a class="row{% if not p.is_active %} row--inactive{% endif %}" href="{% url 'aquarium:parameter_edit' p.pk %}">
+        <span class="row__main">
+          {{ p.name }}
+          <small>{{ p.get_group_display }}{% if p.range_display %} · {{ p.range_display }} {{ p.unit }}{% endif %}{% if not p.is_active %} · inactivo{% endif %}</small>
+        </span>
+        <span class="row__side">{{ p.measurement_count }} med.</span>
+      </a>
+    {% endfor %}
+  </section>
+
+  <p class="footnote"><a href="{% url 'admin:index' %}">Administración de Django</a></p>
+{% endblock %}

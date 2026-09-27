@@ -1,0 +1,47 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}{{ parameter.name }} · acuar.io{% endblock %}
+
+{% block topbar_action %}
+  <a class="btn btn--primary btn--small" href="{% url 'aquarium:measurement_add' %}?parameter={{ parameter.pk }}">+ Valor</a>
+{% endblock %}
+
+{% block content %}
+  <div class="title-row">
+    <h1>{{ parameter.name }}</h1>
+    <a class="link-muted" href="{% url 'aquarium:parameter_edit' parameter.pk %}">Editar</a>
+  </div>
+  <p class="lead">
+    {% if parameter.range_display %}Rango objetivo {{ parameter.range_display }} {{ parameter.unit }}{% else %}Sin rango objetivo{% endif %}
+  </p>
+
+  {% if sparkline %}
+    <div class="chart">
+      {% include "aquarium/_sparkline.html" with sparkline=sparkline status="ok" large=True %}
+      <p class="chart__caption">Hasta las últimas 30 mediciones · la banda marca el rango objetivo</p>
+    </div>
+  {% endif %}
+
+  <dl class="stats" aria-label="Últimos 30 días">
+    <div><dt>Mediciones 30 d</dt><dd>{{ stats.count }}</dd></div>
+    <div><dt>Media</dt><dd>{{ stats.avg }}</dd></div>
+    <div><dt>Mín.</dt><dd>{{ stats.min }}</dd></div>
+    <div><dt>Máx.</dt><dd>{{ stats.max }}</dd></div>
+  </dl>
+
+  <section class="section">
+    <h2>Historial</h2>
+    {% for m in page %}
+      <a class="row" href="{% url 'aquarium:measurement_edit' m.pk %}">
+        <span class="row__main">
+          <span class="row__value row__value--{{ m.status }}">{{ m.formatted_value }} <small>{{ parameter.unit }}</small></span>
+          {% if m.notes %}<small>{{ m.notes|truncatechars:60 }}</small>{% endif %}
+        </span>
+        <span class="row__side">{{ m.measured_at|date:"j M Y, H:i" }}{% if m.source != 'manual' %}<small>{{ m.get_source_display }}</small>{% endif %}</span>
+      </a>
+    {% empty %}
+      <p class="empty">Todavía no hay mediciones de este parámetro.</p>
+    {% endfor %}
+    {% include "aquarium/_pagination.html" %}
+  </section>
+{% endblock %}

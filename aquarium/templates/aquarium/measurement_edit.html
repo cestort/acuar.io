@@ -1,0 +1,22 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}Editar medición · acuar.io{% endblock %}
+
+{% block content %}
+  <h1>Editar medición</h1>
+  <p class="lead">{{ measurement.parameter.name }}{% if measurement.parameter.range_display %} · rango {{ measurement.parameter.range_display }} {{ measurement.parameter.unit }}{% endif %}</p>
+
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% include "aquarium/_field.html" with field=form.value hint=measurement.parameter.unit %}
+    {% include "aquarium/_field.html" with field=form.measured_at %}
+    {% include "aquarium/_field.html" with field=form.notes %}
+    <button class="btn btn--primary btn--block" type="submit">Guardar</button>
+  </form>
+
+  <form method="post" action="{% url 'aquarium:measurement_delete' measurement.pk %}" class="danger-zone"
+        onsubmit="return confirm('¿Borrar esta medición?');">
+    {% csrf_token %}
+    <button class="btn btn--danger btn--block" type="submit">Borrar medición</button>
+  </form>
+{% endblock %}

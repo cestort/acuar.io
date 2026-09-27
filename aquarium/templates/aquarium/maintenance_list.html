@@ -1,0 +1,31 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}Diario · acuar.io{% endblock %}
+
+{% block topbar_action %}
+  <a class="btn btn--primary btn--small" href="{% url 'aquarium:maintenance_create' %}">+ Entrada</a>
+{% endblock %}
+
+{% block content %}
+  <h1>Diario de mantenimiento</h1>
+  <p class="lead">Cambios de agua, dosificación, altas de fauna, equipo…</p>
+
+  <section class="section">
+    {% regroup page by occurred_at|date:"F Y" as months %}
+    {% for month in months %}
+      <h2 class="month">{{ month.grouper }}</h2>
+      {% for entry in month.list %}
+        <a class="row" href="{% url 'aquarium:maintenance_edit' entry.pk %}">
+          <span class="row__main">
+            {{ entry.title }}
+            <small>{{ entry.get_category_display }}{% if entry.description %} · {{ entry.description|truncatechars:60 }}{% endif %}</small>
+          </span>
+          <span class="row__side">{{ entry.occurred_at|date:"j M" }}</span>
+        </a>
+      {% endfor %}
+    {% empty %}
+      <p class="empty">Aún no hay entradas. <a href="{% url 'aquarium:maintenance_create' %}">Añade la primera</a>.</p>
+    {% endfor %}
+    {% include "aquarium/_pagination.html" %}
+  </section>
+{% endblock %}

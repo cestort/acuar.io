@@ -1,0 +1,59 @@
+{% extends "aquarium/base.html" %}
+
+{% block topbar_action %}
+  <a class="btn btn--primary btn--small" href="{% url 'aquarium:measurement_add' %}">+ Test</a>
+{% endblock %}
+
+{% block content %}
+  {% if out_of_range %}
+    <section class="alert" role="status">
+      <strong>{{ out_of_range|length }} fuera de rango</strong>
+      <span>{% for c in out_of_range %}{{ c.parameter.name }} {% if c.status == 'low' %}bajo{% else %}alto{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+    </section>
+  {% endif %}
+
+  <section class="grid" aria-label="Parámetros">
+    {% for card in cards %}
+      <a class="card card--{{ card.status }}" href="{% url 'aquarium:parameter_detail' card.parameter.pk %}">
+        <div class="card__head">
+          <span class="card__name">{{ card.parameter.name }}</span>
+          {% if card.latest %}
+            <span class="pill pill--{{ card.status }}">
+              {% if card.status == 'ok' %}OK{% elif card.status == 'low' %}Bajo{% elif card.status == 'high' %}Alto{% else %}—{% endif %}
+            </span>
+          {% endif %}
+        </div>
+        <div class="card__value">
+          {% if card.latest %}
+            {{ card.latest.formatted_value }}<small>{{ card.parameter.unit }}</small>
+            {% if card.trend == 'up' %}<span class="trend" title="Sube">↑</span>{% elif card.trend == 'down' %}<span class="trend" title="Baja">↓</span>{% endif %}
+          {% else %}
+            <span class="card__empty">Sin datos</span>
+          {% endif %}
+        </div>
+        {% include "aquarium/_sparkline.html" with sparkline=card.sparkline status=card.status %}
+        <div class="card__foot">
+          {% if card.latest %}<span>hace {{ card.latest.measured_at|timesince }}</span>{% endif %}
+          {% if card.parameter.range_display %}<span>{{ card.parameter.range_display }}</span>{% endif %}
+        </div>
+      </a>
+    {% empty %}
+      <p class="empty">No hay parámetros activos. <a href="{% url 'aquarium:parameter_list' %}">Configúralos</a>.</p>
+    {% endfor %}
+  </section>
+
+  <section class="section">
+    <div class="section__head">
+      <h2>Diario reciente</h2>
+      <a href="{% url 'aquarium:maintenance_create' %}">+ Añadir</a>
+    </div>
+    {% for entry in recent_maintenance %}
+      <a class="row" href="{% url 'aquarium:maintenance_edit' entry.pk %}">
+        <span class="row__main">{{ entry.title }}<small>{{ entry.get_category_display }}</small></span>
+        <span class="row__side">{{ entry.occurred_at|date:"j M" }}</span>
+      </a>
+    {% empty %}
+      <p class="empty">Aún no hay entradas en el diario.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

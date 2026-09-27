@@ -1,0 +1,29 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}{% if parameter %}Editar {{ parameter.name }}{% else %}Nuevo parámetro{% endif %} · acuar.io{% endblock %}
+
+{% block content %}
+  <h1>{% if parameter %}Editar {{ parameter.name }}{% else %}Nuevo parámetro{% endif %}</h1>
+
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="message message--error">{{ error }}</p>{% endfor %}
+    <div class="form__row">
+      {% include "aquarium/_field.html" with field=form.code %}
+      {% include "aquarium/_field.html" with field=form.unit %}
+    </div>
+    {% include "aquarium/_field.html" with field=form.name %}
+    {% include "aquarium/_field.html" with field=form.group %}
+    <div class="form__row">
+      {% include "aquarium/_field.html" with field=form.min_value %}
+      {% include "aquarium/_field.html" with field=form.max_value %}
+    </div>
+    <div class="form__row">
+      {% include "aquarium/_field.html" with field=form.decimals %}
+      {% include "aquarium/_field.html" with field=form.order %}
+    </div>
+    {% include "aquarium/_field.html" with field=form.is_active %}
+    {% include "aquarium/_field.html" with field=form.description %}
+    <button class="btn btn--primary btn--block" type="submit">Guardar</button>
+  </form>
+{% endblock %}

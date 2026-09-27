@@ -1,0 +1,36 @@
+{% extends "aquarium/base.html" %}
+
+{% block title %}Registrar test · acuar.io{% endblock %}
+
+{% block content %}
+  <h1>Registrar test</h1>
+  <p class="lead">{% if single %}Introduce el valor medido.{% else %}Rellena solo los parámetros que hayas medido.{% endif %}</p>
+
+  <form method="post" class="form" novalidate>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="message message--error">{{ error }}</p>{% endfor %}
+
+    {% include "aquarium/_field.html" with field=form.measured_at %}
+
+    <fieldset class="values">
+      <legend>Valores</legend>
+      {% for parameter, field in form.value_fields %}
+        <div class="value-input{% if field.errors %} field--error{% endif %}">
+          <label for="{{ field.id_for_label }}">
+            {{ parameter.name }}
+            {% if parameter.range_display %}<small>{{ parameter.range_display }}</small>{% endif %}
+          </label>
+          <div class="value-input__control">
+            {{ field }}
+            <span class="value-input__unit">{{ parameter.unit }}</span>
+          </div>
+          {% for error in field.errors %}<p class="field__error">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    {% include "aquarium/_field.html" with field=form.notes %}
+
+    <button class="btn btn--primary btn--block" type="submit">Guardar</button>
+  </form>
+{% endblock %}

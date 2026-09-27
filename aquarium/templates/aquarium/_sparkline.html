@@ -1,0 +1,9 @@
+{% if sparkline %}
+<svg class="spark{% if large %} spark--large{% endif %}" viewBox="0 0 {{ sparkline.width }} {{ sparkline.height }}" preserveAspectRatio="none" aria-hidden="true">
+  {% if sparkline.band_y is not None %}
+    <rect class="spark__band" x="0" y="{{ sparkline.band_y|stringformat:'s' }}" width="{{ sparkline.width }}" height="{{ sparkline.band_height|stringformat:'s' }}"/>
+  {% endif %}
+  <polyline class="spark__line" points="{{ sparkline.points }}" vector-effect="non-scaling-stroke"/>
+  <circle class="spark__dot spark__dot--{{ status }}" cx="{{ sparkline.last_x|stringformat:'s' }}" cy="{{ sparkline.last_y|stringformat:'s' }}" r="{% if large %}4{% else %}2.5{% endif %}"/>
+</svg>
+{% endif %}
