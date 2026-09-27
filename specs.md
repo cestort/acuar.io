@@ -77,7 +77,7 @@ Parámetros predefinidos desde el inicio:
 
 | Grupo | Parámetros |
 |---|---|
-| Físicos | Temperatura, salinidad, pH |
+| Físicos | Temperatura, salinidad (densidad, SG), pH |
 | Mayoritarios | KH, Ca, Mg |
 | Nutrientes | NO3, PO4 |
 
