@@ -6,6 +6,12 @@ from django.urls import reverse
 from aquarium.models import MaintenanceEntry, Measurement, Parameter
 
 
+class HealthTests(TestCase):
+    def test_health(self):
+        response = self.client.get("/health/")
+        self.assertEqual(response.json(), {"status": "ok"})
+
+
 class DashboardTests(TestCase):
     def test_empty_dashboard(self):
         response = self.client.get(reverse("aquarium:dashboard"))

@@ -1,0 +1,43 @@
+# Despliegue en el VPS. Los puertos solo se publican en la IP de WireGuard,
+# así que la app y ntfy no son accesibles desde internet.
+#
+# Variables leídas del fichero .env de este directorio (lo genera GitHub Actions):
+#   WG_BIND_IP, APP_PORT, NTFY_PORT, DJANGO_SECRET_KEY, OPENROUTER_API_KEY...
+
+name: acuario
+
+services:
+  app:
+    build: .
+    image: acuario-app:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SQLITE_PATH: /data/db.sqlite3
+      DJANGO_DEBUG: "false"
+      NTFY_URL: http://ntfy
+    ports:
+      - "${WG_BIND_IP:?Define WG_BIND_IP en .env}:${APP_PORT:-8000}:8000"
+    volumes:
+      - app_data:/data
+    depends_on:
+      - ntfy
+
+  ntfy:
+    image: binwiederhier/ntfy:v2.28.0
+    command: serve
+    restart: unless-stopped
+    environment:
+      NTFY_BASE_URL: http://${WG_BIND_IP}:${NTFY_PORT:-8080}
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+      NTFY_CACHE_DURATION: 72h
+      NTFY_BEHIND_PROXY: "false"
+      TZ: Europe/Madrid
+    ports:
+      - "${WG_BIND_IP}:${NTFY_PORT:-8080}:80"
+    volumes:
+      - ntfy_cache:/var/cache/ntfy
+
+volumes:
+  app_data:
+  ntfy_cache:

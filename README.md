@@ -24,7 +24,14 @@ Abre http://127.0.0.1:8000.
 DJANGO_DEBUG=1 python manage.py test
 ```
 
+## Despliegue
+
+Automático con GitHub Actions en cada push a `main`. Preparación del VPS y secretos necesarios: [DEPLOY.md](DEPLOY.md).
+
 ## Estructura
 
 - `config/` — configuración del proyecto Django (todo lo variable se lee de variables de entorno).
 - `aquarium/` — app principal: parámetros, mediciones y diario de mantenimiento.
+- `docker/`, `Dockerfile`, `docker-compose.yml` — contenedores de la app y de ntfy.
+- `scripts/setup-vps.sh` — preparación del VPS (una sola vez).
+- `.github/workflows/deploy.yml` — tests y despliegue.

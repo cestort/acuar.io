@@ -27,6 +27,8 @@ if not SECRET_KEY:
         raise RuntimeError("DJANGO_SECRET_KEY es obligatoria cuando DJANGO_DEBUG está desactivado.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+# El healthcheck de Docker llama desde dentro del contenedor.
+ALLOWED_HOSTS += [h for h in ("localhost", "127.0.0.1") if h not in ALLOWED_HOSTS]
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [

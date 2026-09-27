@@ -12,6 +12,7 @@ staticfiles/
 
 # Entorno
 .env
+deploy.env
 
 # Editores / sistema
 .vscode/

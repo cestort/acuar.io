@@ -1,0 +1,161 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nunca dos despliegues a la vez; uno nuevo espera a que termine el anterior.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.ref) || 'deploy-production' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Comprobar migraciones
+        env:
+          DJANGO_DEBUG: "true"
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Ejecutar tests
+        env:
+          DJANGO_DEBUG: "true"
+        run: python manage.py test
+
+  deploy:
+    name: Desplegar en el VPS
+    needs: test
+    # Solo en main y cuando el VPS ya está configurado (variable WG_BIND_IP definida en GitHub).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WG_BIND_IP != ''
+    runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ vars.VPS_SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/acuario' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Comprobar configuración
+        env:
+          WG_BIND_IP: ${{ vars.WG_BIND_IP }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        run: |
+          missing=""
+          for name in VPS_HOST VPS_USER VPS_SSH_KEY VPS_SSH_KNOWN_HOSTS DJANGO_SECRET_KEY WG_BIND_IP; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Faltan secretos o variables en GitHub:$missing (ver DEPLOY.md)"
+            exit 1
+          fi
+          # Ruta absoluta de al menos dos niveles (p. ej. /opt/acuario), sin espacios ni comillas.
+          if [[ ! "$DEPLOY_PATH" =~ ^(/[A-Za-z0-9._-]+){2,}$ ]]; then
+            echo "::error::DEPLOY_PATH no válido: '$DEPLOY_PATH'"
+            exit 1
+          fi
+
+      - name: Preparar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName $VPS_HOST
+            User $VPS_USER
+            Port $VPS_PORT
+            IdentityFile $HOME/.ssh/deploy_key
+            IdentitiesOnly yes
+            UserKnownHostsFile $HOME/.ssh/known_hosts
+            StrictHostKeyChecking yes
+            ServerAliveInterval 15
+          EOF
+
+      - name: Generar .env de producción
+        env:
+          WG_BIND_IP: ${{ vars.WG_BIND_IP }}
+          APP_PORT: ${{ vars.APP_PORT || '8000' }}
+          NTFY_PORT: ${{ vars.NTFY_PORT || '8080' }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          umask 077
+          {
+            echo "WG_BIND_IP=$WG_BIND_IP"
+            echo "APP_PORT=$APP_PORT"
+            echo "NTFY_PORT=$NTFY_PORT"
+            echo "DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY"
+            echo "DJANGO_ALLOWED_HOSTS=$WG_BIND_IP"
+            echo "DJANGO_CSRF_TRUSTED_ORIGINS=http://$WG_BIND_IP:$APP_PORT"
+            echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+            echo "TIME_ZONE=Europe/Madrid"
+          } > deploy.env
+
+      - name: Subir código y .env
+        run: |
+          # shellcheck disable=SC2029  # $DEPLOY_PATH se expande a propósito en el runner
+          # Sustituye el código del directorio de despliegue. Los datos viven en volúmenes
+          # de Docker, fuera de este directorio, así que no se tocan.
+          git archive --format=tar HEAD | ssh vps "set -e
+            mkdir -p '$DEPLOY_PATH'
+            cd '$DEPLOY_PATH'
+            find . -mindepth 1 -maxdepth 1 ! -name .env -exec rm -rf {} +
+            tar -x"
+          # shellcheck disable=SC2029
+          ssh vps "umask 077 && cat > '$DEPLOY_PATH/.env'" < deploy.env
+
+      - name: Construir y arrancar contenedores
+        run: |
+          # shellcheck disable=SC2029
+          ssh vps "
+            set -e
+            cd '$DEPLOY_PATH'
+            docker compose up -d --build --remove-orphans
+            docker image prune -f
+          "
+
+      - name: Esperar a que la app esté sana
+        run: |
+          # shellcheck disable=SC2029
+          ssh vps "
+            cd '$DEPLOY_PATH'
+            cid=\$(docker compose ps -q app)
+            for i in \$(seq 1 30); do
+              status=\$(docker inspect --format '{{.State.Health.Status}}' \"\$cid\")
+              echo \"Intento \$i: \$status\"
+              [ \"\$status\" = healthy ] && exit 0
+              [ \"\$status\" = unhealthy ] && break
+              sleep 3
+            done
+            echo 'La app no ha arrancado bien. Últimos logs:'
+            docker compose logs --tail 80 app
+            exit 1
+          "
+
+      - name: Limpiar credenciales
+        if: always()
+        run: rm -f ~/.ssh/deploy_key deploy.env

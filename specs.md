@@ -111,12 +111,17 @@ Parámetros predefinidos desde el inicio:
 - SSH abierto al público **solo con autenticación por clave** (sin contraseña), usado por el despliegue.
 
 ## 6. Despliegue (CI/CD)
-- Despliegue al VPS mediante GitHub Actions.
-- Acceso del runner al VPS por **SSH público con clave**; la clave y el resto de secretos (clave de OpenRouter, etc.) se guardan en GitHub Secrets.
+- Despliegue al VPS mediante GitHub Actions (`.github/workflows/deploy.yml`), en cada push a `main`.
+- Flujo: tests → subida del código por SSH → `docker compose up -d --build` en el VPS → espera a que `/health/` responda.
+- Acceso del runner al VPS por **SSH público con clave**, con un usuario `deploy` dedicado (miembro del grupo `docker`) y una clave exclusiva limitada con `restrict`.
+- La clave y el resto de secretos (clave de OpenRouter, `DJANGO_SECRET_KEY`, etc.) se guardan en GitHub Secrets; el workflow genera el `.env` del VPS en cada despliegue.
+- La imagen se construye en el propio VPS (sin registro de imágenes).
 - El despliegue no debe tocar el volumen de SQLite.
+- Docker arranca después de WireGuard (drop-in de systemd), porque los puertos se publican en la IP de la VPN.
+- Preparación del VPS con `scripts/setup-vps.sh` y guía completa en `DEPLOY.md`.
 
 ## 7. Copias de seguridad
 - **De momento no.** A revisar más adelante (el fichero SQLite es fácil de copiar).
 
 ## 8. Decisiones pendientes
-- Ninguna por ahora.
+- **[PENDIENTE]** HTTPS para la PWA: Chrome en Android solo permite instalar una PWA completa y usar *service workers* con HTTPS. Por HTTP a una IP solo se puede añadir un acceso directo. Opciones: dominio propio con certificado de Let's Encrypt (reto DNS, sin exponer nada a internet) o certificado de una CA propia instalada en el móvil.
